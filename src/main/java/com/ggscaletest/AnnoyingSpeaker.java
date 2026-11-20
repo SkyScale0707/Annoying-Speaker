@@ -22,6 +22,8 @@ public class AnnoyingSpeaker implements ModInitializer {
 		// Proceed with mild caution.
 
 		LOGGER.info("Hello Fabric world!");
+		// 闲的蛋痛, 在这里插个眼
+		LOGGER.info("The Mod [Annoying Speaker] is loaded successfully!");
 	}
 
 	public static Identifier id(String path) {
