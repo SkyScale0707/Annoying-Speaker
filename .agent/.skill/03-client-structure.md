@@ -131,6 +131,13 @@ AbstractWidget#renderWidget(...)                   →   extractWidgetRenderStat
 加载器 `client/resources/model/{BlockStateModelLoader,ModelBaker}`。
 战利品表在 26.3 用单数 `"condition"`/`"modifier"`（`LootPool.java:37-38`），不是旧版的 `conditions` 数组。
 
+两个易误判点：
+
+- 单变体方块的 blockstate 键是空字符串 `""`（原版 `jukebox.json` 即如此）。PowerShell 5.1 的
+  `ConvertFrom-Json` 处理不了空键，会报"参数 name 无效"——是解析器的问题，用 `python -c "json.load(...)"` 复核。
+- `display` 的槽位在 26.3 包含 `on_shelf`（`ItemTransforms.java:42` → `fixedFromBottom`），Blockbench 导出带它可直接用。
+- 贴图分辨率与 UV 空间无关：UV 若按 16 空间导出，贴图放大到 64×64 仍按比例采样，**不要**补 `texture_width/height`。
+
 ## 7. 网络与客户端世界
 
 | 类 | 行数 | 作用 |

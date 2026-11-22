@@ -203,6 +203,41 @@
 - **产物**：`ModBlocks.java`、`ModItems.java`（含 Doxygen 注释）、`AnnoyingSpeaker.java` 的 2 行改动；
   最小版代码同时并入 `10-code-recipes.md` R-001。
 
+### F-014 · 把 Blockbench 模型落进 resources 让方块"现形"
+- **日期**：2026-11-22
+- **问**：把 `models_of_speaker` 里的文件加进 resources，使方块与物品在游戏里显示出来。
+- **答**：落位清单（**文件名必须等于注册表路径 `annoying-speaker`，含连字符**）：
+  | 源文件 | 目标 |
+  |---|---|
+  | （新写） | `assets/annoying-speaker/blockstates/annoying-speaker.json` → `{"variants":{"":{"model":"annoying-speaker:block/annoying-speaker"}}}` |
+  | （新写） | `assets/annoying-speaker/items/annoying-speaker.json` → `{"model":{"type":"minecraft:model","model":"annoying-speaker:block/annoying-speaker"}}` |
+  | `annoying speaker.json` | `assets/annoying-speaker/models/block/annoying-speaker.json`：只改 `textures` 为全名、删 `format_version`/`credit`/`groups`；`elements` 与 `display` 原样保留 |
+  | `mainbody/handles/decorations.png` | `assets/annoying-speaker/textures/block/*.png` |
+  | （新写） | `assets/annoying-speaker/lang/{en_us,zh_cn}.json` → `block.annoying-speaker.annoying-speaker` |
+  | （新写） | `data/annoying-speaker/loot_table/blocks/annoying-speaker.json`（26.3 单数 `condition`） |
+  另外方块属性必须加 `noOcclusion()`：模型不是满方块，不关遮蔽会让相邻方块朝它的面被剔除。
+- **三个实测坑**：
+  1. `mainbody.png` 是 **64×64**，而 `handles/decorations` 是 16×16。UV 是 16 空间且放大是等比的，
+     因此**不要**加 `texture_width/height`（加了反而改变采样比例）。
+  2. `display` 里的 `"on_shelf"` 在 26.3 **是合法槽位**（`ItemTransforms.java:42` 映射到 `fixedFromBottom`），不必删。
+  3. `blockstates` 的变体键是空字符串 `""`，**PowerShell 5.1 的 `ConvertFrom-Json` 会报"参数 name 无效"**，
+     那是解析器缺陷不是 JSON 非法；用 `python -c "json.load(...)"` 复核即可。
+- **证据**：`client/resources/model/cuboid/CuboidModel.java:51`（解析 `display`）、`ItemTransforms.java:42`（`ON_SHELF`）、
+  原版 `assets/minecraft/blockstates/jukebox.json` / `items/jukebox.json` / `data/minecraft/loot_table/blocks/jukebox.json` 同构
+- **检索**：`mc-src.ps1 show net/minecraft/client/resources/model/cuboid/ItemTransforms.java -From 30 -To 46`
+- **落地**：`src/main/resources`（资源随 common 侧打包，客户端与专用服务端都读）。
+- **产物**：6 个 JSON + 3 张贴图，全部通过 Python `json.loads` 校验；**未做运行期渲染验证**（JDK 21 起不来）。
+
+### F-015 · "方块类物品必须先注册方块、再注册物品"是版本差异吗
+- **日期**：2026-11-22
+- **问**：注释里写"26.3 先注册方块再注册物品，和 1.21.1 相反"，这个说法对吗。
+- **答**：不是版本差异，是**构造依赖**：`BlockItem(Block, Item.Properties)` 的构造参数就是那个 `Block` 实例，
+  任何版本都必须先有方块对象才能 `new BlockItem`。1.21.1 的 `Items.registerBlock(BlockItemId, Block)` 同样是方块在前。
+  `Blocks.register` 与 `Items.registerItem` 只是把这件事写进了各自的注册表。
+- **证据**：`world/item/BlockItem.java:35`（构造签名）、`world/item/Items.java:2871`（`registerBlock(BlockItemId, Block)`）
+- **检索**：`mc-src.ps1 grep "public BlockItem\(" -Side common`
+- **落地**：注释按此更正；顺序本身不用改。
+
 ---
 
 ## 待答 / 候选问题（下次提问时优先验证）
