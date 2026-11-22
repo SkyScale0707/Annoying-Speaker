@@ -1,4 +1,4 @@
-# 05 · 问答结论库
+﻿# 05 · 问答结论库
 
 > **追加规则**：每轮提问结束后在文末追加一条 `F-xxx`，编号连续、不删不改。
 > 若新证据推翻了旧结论，在旧条目内追加 `> 修订(日期)：…`，并在 `90-update-log.md` 记为「更正」。
@@ -343,6 +343,31 @@
 - **落地**：`SpeakerBlock` 的 `SHAPES` 字段；`SHAPE_WEST` 盒子保持不变。若坚持 north→0 约定，则必须把盒子整体
   旋 +90（north 版）并把 blockstate 改回 north→0，那就不再是"默认朝西"。
 - **验证**：静态核对（import 可见性、括号平衡、注释规则）+ 旋转推导；按用户要求未执行 `gradlew`。
+
+### F-021 · 26.3 从磁盘播放 OGG 的链路（音乐播放前置调研）
+- **日期**：2026-11-22
+- **问**：音乐播放要"读取配置目录里的 ogg 并播放"，26.3 的引擎入口在哪、和 1.21.1 的 elytra-music 差在哪。
+- **答**：26.3 的声音资源链路是 `SoundManager#getSoundEvent(Identifier)` → `WeighedSoundEvents` → `Sound`；
+  流式音频由 `SoundBufferLibrary#getStream(Identifier location, boolean looping)` 打开，
+  内部就是 `resourceManager.open(location)` + `JOrbisAudioStream`。所以"磁盘播放"的做法是两条客户端 Mixin：
+  1. `SoundManager#getSoundEvent`：命名空间命中时返回合成的 `WeighedSoundEvents`，
+     内含 `new Sound(id, ConstantFloat.of(1F), ConstantFloat.of(1F), 1, Sound.Type.FILE, true, false, 16)`；
+  2. `SoundBufferLibrary#getStream`：命中时改为 `new JOrbisAudioStream(new FileInputStream(file))`。
+  播放实例可直接用 `new AbstractSoundInstance(Identifier, SoundSource, RandomSource)`（26.3 新增的 Identifier 构造），
+  淡入淡出用 `TickableSoundInstance#tick` 里**直接写回 `this.volume`**。
+- **1.21.1 → 26.3 改名**：`SoundManager#get`→`#getSoundEvent`；`WeightedSoundSet`→`WeighedSoundEvents`（拼写变了）；
+  `SoundLoader#loadStreamed`→`SoundBufferLibrary#getStream`；`OggAudioStream`→`JOrbisAudioStream`；
+  `Sound.RegistrationType.FILE`→`Sound.Type.FILE`；`MinecraftClient#runDirectory`→`Minecraft#gameDirectory`。
+- **关键坑**：`Sound#getPath()` 会用 `SOUND_LISTER.idToFile()` 自动补 `sounds/` 前缀与 `.ogg` 后缀，
+  从磁盘找文件前必须还原成裸文件名。
+- **证据**：`client/sounds/SoundManager.java:170`（`getSoundEvent`）、`client/sounds/SoundBufferLibrary.java:40-49`（`getStream`）、
+  `client/sounds/JOrbisAudioStream.java`、`client/resources/sounds/Sound.java:12`（`SOUND_LISTER`）、`:100`（`Sound.Type.FILE`）、
+  `client/sounds/WeighedSoundEvents.java:18,60`、`client/resources/sounds/AbstractSoundInstance.java:27,31`、
+  `Minecraft.java:315`（`gameDirectory`）
+- **检索**：`mc-src.ps1 show net/minecraft/client/sounds/SoundBufferLibrary.java -From 38 -To 50`
+- **落地**：客户端（`src/client`）Mixin + 一个 `AbstractSoundInstance` 子类；配置目录用
+  `FabricLoader.getInstance().getConfigDir()`，不要硬编码 `run\config`。
+- **验证**：以上均为源码级确认，尚未写实现；实现计划见 `.agent\.log\开发日志（2026-11-22 23-24）.md`。
 
 ---
 

@@ -1,4 +1,4 @@
-# 01 · 源码包坐标与两侧划分
+﻿# 01 · 源码包坐标与两侧划分
 
 ## 1. 两个包各是什么
 
@@ -94,11 +94,14 @@ jar 更新后 `mc-src.ps1 ensure` 会自动重新解包（缓存内有 `.source-
 > ⚠️ **以下命令只允许用户执行。agent 不得运行 `gradlew` / `runClient`**（`agent_read.md` 的硬性要求）。
 > 本节保留这些信息，是为了在用户贴出报错时能对上环境，而不是给 agent 的执行清单。
 > agent 的验证手段：源码比读、JSON 解析（python）、字节码 `findstr`、行号核对。
+> 项目级登记只作用于本工作区：`.vscode/` 在 `.gitignore` 里，所以这份 JDK 路径不会随仓库分发，换机器后需要在 `java.configuration.runtimes` 与 `java.import.gradle.java.home` 里重新指向本机 JDK 25。
+
 
 | 项 | 实测值 |
 |---|---|
 | `JAVA_HOME`（系统默认） | `D:\java_develop_kit\jdk-21-windows-x64`（21.0.8）—— **跑不了 Gradle** |
-| 可用的 JDK 25 | `C:\Users\逸\.vscode\extensions\redhat.java-1.58.0-win32-x64\jre\25.0.4.1-win32-x86_64`（VSCode Java 扩展内置的**完整 JDK**，含 `javac`，Temurin 25.0.4.1） |
+| 项目登记用 JDK 25 | `D:\java_develop_kit\jdk-25-oracle`（Oracle JDK **25.0.5.0.3**，完整 JDK，含 `javac`）——已写入 `.vscode/settings.json` 的 `java.configuration.runtimes`（JavaSE-25，default）与 `java.import.gradle.java.home` |
+| 备用 JDK 25 | `C:\Users\逸\.vscode\extensions\redhat.java-1.58.0-win32-x64\jre\25.0.4.1-win32-x86_64`（VSCode Java 扩展内置的完整 JDK，Temurin 25.0.4.1） |
 | `GRADLE_USER_HOME` | `E:\MCProject\gradle_cache` |
 | Gradle | 9.8.2 |
 | Loom | `1.19.4`；插件 classpath 要求 JVM 25 |
