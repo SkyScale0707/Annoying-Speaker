@@ -136,6 +136,73 @@
 - **检索**：`mc-src.ps1 show net/minecraft/references/BlockItemId.java`
 - **落地**：`src/main`。
 
+### F-011 · 方块类物品怎么注册（可放置 + 可在手中使用）
+- **日期**：2026-11-22
+- **问**：`models_of_speaker` 里的模型要做一个方块类物品，既能放置又能手持使用；
+  怎么"调用 `Items.java` 里的写法"来注册。
+- **答**：`Items.java` 里那套是 **private 助手 + 三步**，模组里"复刻"这三步而不是调用它：
+  1. `Item.Properties#setId(ResourceKey<Item>)` —— **必填**，否则 `itemIdOrThrow()` 抛 `Item id not set`；
+  2. 若是 `BlockItem`，调 `blockItem.registerBlocks(Item.BY_BLOCK, item)` —— 建立 方块→物品 映射
+     （`Block#asItem()`、掉落、创造栏都依赖它）；
+  3. `Registry.register(BuiltInRegistries.ITEM, ResourceKey<Item>, item)`。
+  方块侧可以先 `Blocks.register(...)`（Fabric 已把它拓宽为 `public`），它会自动 `properties.setId(id)`。
+  - **放置**：`BlockItem#useOn` → `place(new BlockPlaceContext(ctx))`，默认就能放，不用自己写。
+  - **手持使用**：覆写 `Item#use(Level, Player, InteractionHand)`；它只在"右键空气/不指向方块"时被调用。
+    指向方块时走的是 `useOn`（先尝试放置），所以"放置优先、手持特效兜底"是默认语义。
+  - **资源（26.3 实测，与原版 jar 对照）**：
+    | 要写的东西 | 路径 | 说明 |
+    |---|---|---|
+    | 物品模型定义 | `assets/<ns>/items/<id>.json` | **不是** `models/item/`。内容 `{"model":{"type":"minecraft:model","model":"<ns>:block/<id>"}}`（原版 1659 个） |
+    | 方块状态 | `assets/<ns>/blockstates/<id>.json` | `{"variants":{"":{"model":"<ns>:block/<id>"}}}` |
+    | 几何模型 | `assets/<ns>/models/block/<id>.json` | Blockbench 的 elements 可直接用；`textures` 建议写全名 `"<ns>:block/mainbody"` |
+    | 贴图 | `assets/<ns>/textures/block/*.png` | 模型里的 `"#0"` 等占位最终指向这里 |
+    | 语言 | `assets/<ns>/lang/en_us.json` / `zh_cn.json` | 键 `block.<ns>.<id>`（配合 `useBlockDescriptionPrefix()`） |
+    | 掉落 | `data/<ns>/loot_table/blocks/<id>.json` | 不写就挖不掉；默认键由方块 id 派生 `blocks/<id>` |
+  - Blockbench 元数据（`format_version`、`credit`、`groups`）Java 会忽略；`display` 段是合法的
+    （`CuboidModel` 显式解析 `"display"`），可直接用于手持/物品栏姿态。
+  - **26.3 战利品表 schema 变了**：池里用单数 `"condition"` / `"modifier"`（不是 1.21 的 `conditions` 数组），
+    原版样例见 `data/minecraft/loot_table/blocks/jukebox.json`。
+- **证据**：`world/item/Items.java:2937-2944`（registerItem 三步）、`:2871-2911`（registerBlock 变体）、
+  `world/item/BlockItem.java:35`（构造）、`:41`（useOn→place）、`:55-98`（place 流程）、`:190`（registerBlocks）、
+  `world/item/Item.java:122`（`public static final Map<Block,Item> BY_BLOCK`）、`:665`（setId）、`:688`（itemIdOrThrow）、
+  `world/level/block/Blocks.java:5655`（public `register`，内部 `properties.setId(id)`）、
+  `core/Registry.java:110/114`（两个 `register` 重载）、
+  `client/resources/model/cuboid/CuboidModel.java:51`（`display` 解析）
+- **检索**：`mc-src.ps1 show net/minecraft/world/item/Items.java -From 2900 -To 2945`
+- **产物**：完整可复制代码见 `10-code-recipes.md` **R-001**（4 个 java 文件 + 全部资源 JSON）。
+- **落地**：`src/main`（common 侧）；方块与物品都要注册，客户端无需额外代码（模型自动加载）。
+  `Item.Properties#useBlockDescriptionPrefix()` 让语言键变成 `block.<modid>.<id>`，与方块共用同一套名称。
+
+### F-012 · 自写代码的 Doxygen 注释按什么规则
+- **日期**：2026-11-22
+- **问**：确立 Doxygen 文档注释编写规则。
+- **答**：规则独立成文 → **`11-doxygen-rules.md`**（`D1`–`D22`，可在 review 里直接引用编号）。要点：
+  - 形式：只用 `/** */`，块内 ` * ` 对齐，单行 ≤ 120 列（`D1`–`D5`）；
+  - 结构：**首行即摘要**（`JAVADOC_AUTOBRIEF = YES`，因此**禁写 `@brief`**，否则重复渲染）、标签顺序固定、`@param` 名字逐字一致（`D6`–`D11`）；
+  - 内容：写**约束**不写复述——侧别、线程、tick 阶段、幂等性；注册表字段必须写表名 + 完整 ID + 原版 `@see`；Mixin 必须写目标签名与冲突风险（`D12`–`D18`）；
+  - 边界：不写 getter/一行方法，禁 `@author`/`@date`/`@version`，过期注释视为缺陷（`D19`–`D22`）；
+  - 交叉引用用 `@ref` / `@see`，**禁用 `{@link}` / `{@code}`**（Doxygen 不解析 javadoc 内联标签，会原样吐出花括号），代码字体用 `@c`、参数名用 `@p`。
+- **证据**：Doxygen 无 javadoc 内联标签支持；`JAVADOC_AUTOBRIEF = YES` 与手写 `@brief` 冲突。
+- **检索**：无源码检索；规则作用于 `src/main/java`、`src/client/java` 的 `com.ggscaletest.*`。
+- **产物**：`11-doxygen-rules.md`（4 类模板、提交前自检命令、最小 Doxyfile）。
+
+### F-013 · 在 ModItems/ModBlocks 里注册一个"暂无特性"的方块类物品（id = annoying-speaker）
+- **日期**：2026-11-22
+- **问**：设置一个暂时无任何特性的方块类物品，物品 ID 为 `annoying-speaker`，用既有 `ModItems` 与 `ModBlocks` 注册。
+- **答**：按 F-011 的三步落进两个既有类，**不引入自定义子类**（"无特性"= 用原版 `Block` 与 `BlockItem`）：
+  - `ModBlocks`：`ANNOYING_SPEAKER_ID = AnnoyingSpeaker.id("annoying-speaker")`（→ 完整 ID `annoying-speaker:annoying-speaker`）、
+    `ANNOYING_SPEAKER_KEY = ResourceKey.create(Registries.BLOCK, …)`、`Blocks.register(KEY, Block::new, Properties.of().strength(1.5F))`；
+  - `ModItems`：`ANNOYING_SPEAKER_ITEM_KEY` 复用方块 ID，`registerBlockItem(…, BlockItem::new)` 做 `setId → registerBlocks → Registry.register`；
+  - `AnnoyingSpeaker#onInitialize()` 先 `ModBlocks.initializer()` 再 `ModItems.initializer()`，把"方块先于物品"变成显式顺序。
+  - ID 用连字符是合法的：`Identifier.validPathChar` 明确包含 `-`（`Identifier.java:262`），不会抛 `IdentifierException`。
+- **证据**：`resources/Identifier.java:262`（允许 `-`）、`world/level/block/Block.java:232`（`public Block(Properties)`，故 `Block::new` 可用）、
+  `resources/ResourceKey.java:28`（`create(ResourceKey<? extends Registry<T>>, Identifier)`）、
+  `world/level/block/Blocks.java:5655`（`register` 三重载中唯一的 3 参版本）
+- **检索**：`mc-src.ps1 show net/minecraft/world/level/block/Blocks.java -From 5648 -To 5670`
+- **落地**：`src/main`（common 侧）。**尚未编译验证**——本机只有 JDK 21，Loom 1.19 要求 JDK 25（见 `01-sources.md` §6）。
+- **产物**：`ModBlocks.java`、`ModItems.java`（含 Doxygen 注释）、`AnnoyingSpeaker.java` 的 2 行改动；
+  最小版代码同时并入 `10-code-recipes.md` R-001。
+
 ---
 
 ## 待答 / 候选问题（下次提问时优先验证）

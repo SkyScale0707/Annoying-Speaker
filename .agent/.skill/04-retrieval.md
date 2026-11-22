@@ -78,6 +78,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $s show net/minecraft/world/
 | 任务 | 先看这里 | 一条能跑的命令 |
 |---|---|---|
 | 新增物品/方块 | `core/registries/BuiltInRegistries`、`references/{ItemIds,BlockIds,BlockItemIds}`、`world/item/Items`、`world/level/block/Blocks` | `grep "= register\(" -Side common -Max 10` |
+| 注册可放置+可手持使用的方块物品 | `Items.java:2937`（三步）、`BlockItem#useOn/place`、`Item#use` | `show net/minecraft/world/item/Items.java -From 2900 -To 2945` |
 | 让某个东西发声 | `world/level/Level.java:383-476` | `show net/minecraft/world/level/Level.java -From 375 -To 480` |
 | 自定义声音事件 | `sounds/SoundEvent.java`、`sounds/SoundEvents.java` | `find SoundEvent` |
 | 新增网络包 | `network/protocol/game/*` + 两侧 listener | `find ServerboundChatPacket` |
@@ -135,6 +136,11 @@ powershell ... -File $s grep "^import net\.minecraft\.client" -Side common -Max 
   （`ItemIds` 499 行、`BlockIds`、`BlockItemIds`）。要确认某方块/物品的**真实 ID**，先查这里。
 - **注册助手法**：`Blocks.register(BlockItemId, Properties)`、`Items.registerItem(...)` / `Items.registerBlock(...)`
   是原版唯一注册入口（`Blocks.java:68`、`Items.java:2867-2907`），照抄它们比照抄旧教程安全。
+- **看 private 助手的尾部**：原版注册类（`Items`/`Blocks`/`SoundEvents`/`EntityType`）的**文件末尾**才是真正的注册机制
+  （`Items.java:2937` 的 `registerItem` 揭示 `setId` + `registerBlocks` + `Registry.register` 三步）。
+  读不到"怎么注册"时，直接 `show <表类>.java -From <总行数-45>`。
+- **`Access widened` 注释＝Fabric 拓宽**：`grep "Access widened by fabric-transitive-access-wideners"` 可列出
+  被 Fabric 变成 public 的原版成员（如 `Blocks.register`、`Item.Properties`），这些就是模组可复用的官方入口。
 - **抽象基类三分法**：`Level`（抽象）/ `ServerLevel` / `ClientLevel` 三件套是理解双端差异的最短路径；同类还有
   `Player` 三分（`Player`/`ServerPlayer`/`LocalPlayer`）、`PacketListener` 三分。
 - **`handle*` 定位法**：任何下行包的行为，都能在 `ClientPacketListener` 里找到同名 `handleXxx`。
@@ -158,7 +164,7 @@ powershell ... -File $s grep "^import net\.minecraft\.client" -Side common -Max 
 
 | 缺失内容 | 实际位置 | 说明 |
 |---|---|---|
-| Fabric API / Fabric Loader 源码 | Gradle 缓存（`fabric-api-0.166.2+26.3` 等） | 回答"用 Fabric API 怎么写"时需说明来源，别在 Minecraft 源码里找 |
+| Fabric API / Fabric Loader 源码 | `E:\MCProject\gradle_cache\caches\modules-2\files-2.1\net.fabricmc.fabric-api\<模块>\…\<模块>-sources.jar`（本地 48 个模块，含 item / sound / registry-sync 等；**item-group 模块本地缺失**，要用时先确认是否存在）+ `fabric-loader-0.20.1-sources.jar` | 回答"用 Fabric API 怎么写"时需说明来源，别在 Minecraft 源码里找 |
 | `assets/`（贴图、模型 JSON、shader、语言） | `.gradle\loom-cache` 的 asset 目录 / 客户端 jar | 本 skill 只覆盖 `.java` |
 | 数据包/资源包 JSON 内容 | 同上的 client jar / `run/` | 数据驱动内容的**定义**在 jar 资源里 |
 | 原生库（LWJGL、OpenAL） | Gradle 依赖 | — |

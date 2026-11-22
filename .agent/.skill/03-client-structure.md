@@ -116,6 +116,21 @@ AbstractWidget#renderWidget(...)                   →   extractWidgetRenderStat
 | `sounds/` | 17 | `SoundEngine`（混音/流式播放）、`SoundManager`（ID→`SoundEvent`、分类音量）、`MusicManager` |
 | `animation/` | 23 | 关键帧动画 |
 
+### 6.1 资源文件布局（26.3，对照原版 jar 实测）
+
+| 资源 | 路径 | 形状 |
+|---|---|---|
+| **物品模型定义** | `assets/<ns>/items/<id>.json` | `{"model":{"type":"minecraft:model","model":"<ns>:block/<id>"}}`；原版 1659 个。**注意不是 `models/item/`**（那 1310 个只是被引用的旧几何） |
+| 方块状态 | `assets/<ns>/blockstates/<id>.json` | `{"variants":{"":{"model":"<ns>:block/<id>"}}}` |
+| 几何模型 | `assets/<ns>/models/block/<id>.json` | `elements` + `textures` + 可选 `display`/`ambientocclusion`；Blockbench 导出可直接用 |
+| 贴图 | `assets/<ns>/textures/block/*.png` | 模型里的 `"#0"` 占位最终解析到这里 |
+| 语言 | `assets/<ns>/lang/<locale>.json` | 键 `block.<ns>.<id>` / `item.<ns>.<id>` |
+| 掉落（数据侧，属 common） | `data/<ns>/loot_table/blocks/<id>.json` | 默认键由方块 id 派生为 `blocks/<id>`（`BlockBehaviour.java:1006`）；不写则挖掉不掉落 |
+
+解析入口：`client/resources/model/cuboid/CuboidModel.java`（`"display"` 在 `:51`）、
+加载器 `client/resources/model/{BlockStateModelLoader,ModelBaker}`。
+战利品表在 26.3 用单数 `"condition"`/`"modifier"`（`LootPool.java:37-38`），不是旧版的 `conditions` 数组。
+
 ## 7. 网络与客户端世界
 
 | 类 | 行数 | 作用 |

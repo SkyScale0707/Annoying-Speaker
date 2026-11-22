@@ -57,6 +57,12 @@ jar 更新后 `mc-src.ps1 ensure` 会自动重新解包（缓存内有 `.source-
 - 反编译产物（Vineflower 风格）：保留字段顺序、**几乎没有注释**；形参大量 `final`、字段访问写成 `this.xxx`，这类写法是反编译特征而非代码要求。
 - 全树 `@NullMarked`（`org.jspecify.annotations`），局部可空处标 `@Nullable`。**读签名时把 `@Nullable` 当作有效 API 信息**。
 - 包级 `package-info.java` 只含 `@NullMarked`，不提供说明文字。
+- **这两个 jar 是 Fabric 打过补丁的 Minecraft，不是纯原版**：`net.minecraft` 下约 42 个文件 `import net.fabricmc.*`
+  （如 `Item.Properties implements net.fabricmc.fabric.api.item.v1.FabricItem.Properties`、
+  `Registry` 引用 `FabricRegistry`）。被拓宽可见性的成员带注释
+  `Access widened by fabric-transitive-access-wideners-v1 to accessible`（例：`Blocks.register` 是 `public`）。
+  → 实践含义：这些成员在 Fabric 环境里**可以直接调用**，但在纯原版里可能是 private；
+  写通用教程时不要把它们当原版 API 宣传。
 
 ## 4. 解包缓存
 
@@ -81,3 +87,21 @@ jar 更新后 `mc-src.ps1 ensure` 会自动重新解包（缓存内有 `.source-
 混入配置也按此切分：`src/main/resources/annoying-speaker.mixins.json`（通用）与
 `src/client/resources/annoying-speaker.client.mixins.json`（客户端）。
 **在 `src/main` 里引用 `net.minecraft.client.*` 会编译不过**——这是判断"这段代码该放哪一侧"的硬约束。
+
+## 6. 本地构建环境（2026-11-22 实测）
+
+| 项 | 实测值 |
+|---|---|
+| `JAVA_HOME` | `D:\java_develop_kit\jdk-21-windows-x64`（OpenJDK 21.0.8） |
+| 本机可用 JDK | 17、21、JRE 8（都在 `D:\java_develop_kit`）；**没有 JDK 25** |
+| Gradle | 9.8.2 |
+| Loom 要求 | `net.fabricmc:fabric-loom:1.19.4` 声明 `Dependency requires at least JVM runtime version 25` |
+| `gradlew.bat compileJava` 结果 | **配置阶段失败**（还没进入编译）：`This build uses a Java 21 JVM` |
+
+结论与用法：
+
+- 装好 JDK 25 之前 **不要用 gradlew 验证编译**，会浪费一轮；改为逐行静态核对 API 签名（本 skill 的常规做法）。
+- 装好后任选其一：
+  `set JAVA_HOME=<JDK25 路径>` 再跑，或 `gradlew.bat "-Dorg.gradle.java.home=<JDK25 路径>" compileJava`。
+- `gradle.properties` 里的 `org.gradle.configuration-cache=true` 会让**失败**的配置结果也被缓存；换 JVM 后若行为异常，加 `--no-configuration-cache`。
+

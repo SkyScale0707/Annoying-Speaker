@@ -7,6 +7,7 @@ import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.ggscaletest.ModItems.ModBlocks;
 import com.ggscaletest.ModItems.ModItems;
 
 public class AnnoyingSpeaker implements ModInitializer {
@@ -26,6 +27,7 @@ public class AnnoyingSpeaker implements ModInitializer {
 		LOGGER.info("Hello Fabric world!");
 		// 闲的蛋痛, 在这里插个眼
 		LOGGER.info("The Mod [Annoying Speaker] is loaded successfully!");
+		ModBlocks.initializer();
 		ModItems.initializer();
 	}
 
