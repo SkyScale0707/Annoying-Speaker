@@ -25,7 +25,7 @@ import net.minecraft.world.phys.shapes.VoxelShape;
  *
  * 继承 @c HorizontalDirectionalBlock 即可白拿 @c rotate 与 @c mirror 的实现，
  * 结构（jigsaw / 命令旋转）旋转时朝向会跟着走。
- * 形状只在"朝北"时手写一次，其余三向交给 @c Shapes.rotateHorizontal，保证与
+ * 形状只在"朝西"时手写一次，其余三向交给 @c Shapes.rotateHorizontal，保证与
  * blockstate 的 @c y 旋转使用同一套旋转约定（两者不同步是最常见的穿模原因）。
  *
  * @see net.minecraft.world.level.block.HorizontalDirectionalBlock
@@ -42,7 +42,7 @@ public class SpeakerBlock extends HorizontalDirectionalBlock {
     public static final EnumProperty<Direction> FACING = HorizontalDirectionalBlock.FACING;
 
     /**
-     * 朝北（默认朝向）时的形状。
+     * 朝西（默认朝向）时的形状。
      *
      * 按模型里能挡住玩家的部件合并：主体 + 两个关节 + 提手横梁 + 侧面装饰板。
      * 坐标单位是 1/16 方块，与模型 JSON 的 @c from / @c to 一一对应；改模型必须同改这里。
@@ -53,7 +53,7 @@ public class SpeakerBlock extends HorizontalDirectionalBlock {
      *       resources/assets/annoying-speaker/models/block/annoying_speaker.json。
      * @since 26.3
      */
-    private static final VoxelShape SHAPE_NORTH = Shapes.or(
+    private static final VoxelShape SHAPE_WEST = Shapes.or(
             Block.box(2.0, 0.0, 3.0, 13.0, 11.0, 14.0),
             Block.box(6.0, 11.0, 3.0, 9.0, 13.0, 5.0),
             Block.box(6.0, 11.0, 12.0, 9.0, 13.0, 14.0),
@@ -65,10 +65,10 @@ public class SpeakerBlock extends HorizontalDirectionalBlock {
      *
      * @since 26.3
      */
-    private static final Map<Direction, VoxelShape> SHAPES = Shapes.rotateHorizontal(SHAPE_NORTH);
+    private static final Map<Direction, VoxelShape> SHAPES = Shapes.rotateHorizontal(SHAPE_WEST);
 
     /**
-     * 构造方块，并把默认状态设为"朝北"。
+     * 构造方块，并把默认状态设为"朝西"。
      *
      * @param properties 方块属性，由注册处传入
      * @note 必须调用父类构造后再 @c registerDefaultState，且 @c createBlockStateDefinition
@@ -77,7 +77,7 @@ public class SpeakerBlock extends HorizontalDirectionalBlock {
      */
     public SpeakerBlock(BlockBehaviour.Properties properties) {
         super(properties);
-        this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
+        this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.WEST));
     }
 
     /**

@@ -50,16 +50,18 @@ public class ModBlocks {
     /**
      * block: annoying-speaker
      *
-     * 暂无任何特性：直接使用 @c Block 的默认实现（完整立方体碰撞箱、默认方块状态、无额外逻辑）。
-     * 唯一必须的例外是 @c noOcclusion()：模型不是满方块，不关遮蔽会让相邻方块的面被错误剔除。
-     * 注册表 @c BuiltInRegistries.BLOCK；ID 由 @c Blocks.register 自动写入，这里不要再调 @c setId。
+     * 行为由 @ref SpeakerBlock 提供（水平朝向 + 贴合模型的碰撞箱），本字段只负责注册与 ID。
+     * 
+     * @c noOcclusion() 是必须的：模型不是满方块，不关遮蔽会让相邻方块的面被错误剔除。
+     *    注册表 @c BuiltInRegistries.BLOCK；ID 由 @c Blocks.register 自动写入，这里不要再调 @c
+     *    setId。
      *
      * @see net.minecraft.world.level.block.Blocks
      * @since 26.3
      */
     public static final Block ANNOYING_SPEAKER = Blocks.register(
             ANNOYING_SPEAKER_KEY,
-            Block::new,
+            SpeakerBlock::new,
             BlockBehaviour.Properties.of()
                     .strength(1.5F)
                     .noOcclusion());

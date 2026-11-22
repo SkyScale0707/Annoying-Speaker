@@ -259,7 +259,25 @@
   `Block.java:108`（`stateDefinition` 为 `protected final`）、`BlockBehaviour.java:321`（碰撞箱委托 `getShape`）
 - **检索**：`mc-src.ps1 show net/minecraft/world/level/block/HorizontalDirectionalBlock.java`
 - **落地**：`src/main`。产物见 `10-code-recipes.md` **R-002**；形状坐标必须与模型 `from/to` 同步维护。
-- **未验证**：本机 JDK 21 起不来，形状旋转只做了公式推导与逐向包围盒核对，未进游戏看穿模。
+- **验证**：`compileJava` 已通过（JDK 25 见 `01-sources.md` §6）；`runClient` 实测后 blockstate/model 两类错误均消失。
+
+### F-017 · 贴图丢失 + 碰撞箱没变：两个症状一个根因
+- **日期**：2026-11-22
+- **问**：进游戏后方块贴图丢失，细节碰撞箱也没生效，要求检查。
+- **答**：**注册用的仍是 `Block::new`，`SpeakerBlock` 虽然编译出来了但没被引用**。于是方块没有 `facing` 属性，
+  而 blockstate 写了 4 个 `facing=` 变体 → 每个变体解析失败 → 没有模型 → 贴图丢失；碰撞箱自然还是默认满方块。
+  修法：工厂改回 `SpeakerBlock::new` → 重编译 → 重跑。
+- **证据**：`run/logs/latest.log` 连续 4 条
+  `Exception loading blockstate definition: '…' for variant: 'facing=north|east|south|west'` +
+  `Missing model for variant: 'Block{annoying-speaker:annoying-speaker}'`；
+  `findstr /C:SpeakerBlock build\classes\java\main\...\ModBlocks.class` 返回 **NO**；`ModBlocks.java:62` 为 `Block::new`。
+- **检索**：`Select-String -Path run\logs\latest.log -Pattern 'Exception loading blockstate|Missing model for variant'`
+- **落地**：修完重跑后，上述两类日志行消失即成功（已实测）。
+- **教训 1（事故）**：上一轮的编辑被**编辑器旧缓冲区保存覆盖**。改完必须回读文件内容确认（`read`/`grep`），
+  不能只看编辑工具的成功回执；用户 IDE 打开着同一文件时尤其危险。
+- **教训 2（诊断顺序）**：模型/贴图/碰撞箱类问题先看 `run/logs/latest.log` 的这两类行，再看 Java；
+  两者同时出现，基本就是"blockstate 的属性和方块状态对不上"（最常见的成因是注册用了不含该属性的类）。
+- **教训 3（验证引用）**：判断"新类有没有真的被用上"，直接 `findstr /C:<类名> <编译产物>.class`，比读源码可靠。
 
 ---
 

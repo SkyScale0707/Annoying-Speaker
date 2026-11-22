@@ -145,6 +145,10 @@ powershell ... -File $s grep "^import net\.minecraft\.client" -Side common -Max 
   最干净（`getStateForPlacement`/`rotate`/`mirror`/`createBlockStateDefinition` 四件套），照抄即可。
   形状四向一律用 `Shapes.rotateHorizontal(north)`，别手算旋转矩阵。
 - **形状找现成写法**：`grep "Shapes.rotateHorizontal(" -Side common` 能一次列出几十个带朝向的方块形状写法。
+- **日志优先排查法**：模型/贴图/碰撞箱异常先读 `run/logs/latest.log`——
+  `Exception loading blockstate definition … for variant` ⇒ blockstate 写了方块状态里不存在的属性
+  （多半是注册用的类不对，如漏了 `SpeakerBlock::new`）；`Missing model for variant` ⇒ 该变体没有模型。
+  再用 `findstr /C:<类名> build\classes\…\X.class` 确认字节码是否真的引用了新类。
 - **抽象基类三分法**：`Level`（抽象）/ `ServerLevel` / `ClientLevel` 三件套是理解双端差异的最短路径；同类还有
   `Player` 三分（`Player`/`ServerPlayer`/`LocalPlayer`）、`PacketListener` 三分。
 - **`handle*` 定位法**：任何下行包的行为，都能在 `ClientPacketListener` 里找到同名 `handleXxx`。

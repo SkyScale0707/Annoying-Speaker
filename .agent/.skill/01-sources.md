@@ -88,20 +88,30 @@ jar 更新后 `mc-src.ps1 ensure` 会自动重新解包（缓存内有 `.source-
 `src/client/resources/annoying-speaker.client.mixins.json`（客户端）。
 **在 `src/main` 里引用 `net.minecraft.client.*` 会编译不过**——这是判断"这段代码该放哪一侧"的硬约束。
 
-## 6. 本地构建环境（2026-11-22 实测）
+
+## 6. 本地构建环境（2026-11-22 实测，已修正）
 
 | 项 | 实测值 |
 |---|---|
-| `JAVA_HOME` | `D:\java_develop_kit\jdk-21-windows-x64`（OpenJDK 21.0.8） |
-| 本机可用 JDK | 17、21、JRE 8（都在 `D:\java_develop_kit`）；**没有 JDK 25** |
+| `JAVA_HOME`（系统默认） | `D:\java_develop_kit\jdk-21-windows-x64`（21.0.8）—— **跑不了 Gradle** |
+| 可用的 JDK 25 | `C:\Users\逸\.vscode\extensions\redhat.java-1.58.0-win32-x64\jre\25.0.4.1-win32-x86_64`（VSCode Java 扩展内置的**完整 JDK**，含 `javac`，Temurin 25.0.4.1） |
+| `GRADLE_USER_HOME` | `E:\MCProject\gradle_cache` |
 | Gradle | 9.8.2 |
-| Loom 要求 | `net.fabricmc:fabric-loom:1.19.4` 声明 `Dependency requires at least JVM runtime version 25` |
-| `gradlew.bat compileJava` 结果 | **配置阶段失败**（还没进入编译）：`This build uses a Java 21 JVM` |
+| Loom | `1.19.4`；插件 classpath 要求 JVM 25 |
+| 用 JDK 21 跑 gradlew | **配置阶段**失败：`Dependency requires at least JVM runtime version 25. This build uses a Java 21 JVM` |
 
-结论与用法：
+正确跑法：
 
-- 装好 JDK 25 之前 **不要用 gradlew 验证编译**，会浪费一轮；改为逐行静态核对 API 签名（本 skill 的常规做法）。
-- 装好后任选其一：
-  `set JAVA_HOME=<JDK25 路径>` 再跑，或 `gradlew.bat "-Dorg.gradle.java.home=<JDK25 路径>" compileJava`。
-- `gradle.properties` 里的 `org.gradle.configuration-cache=true` 会让**失败**的配置结果也被缓存；换 JVM 后若行为异常，加 `--no-configuration-cache`。
+```powershell
+$env:JAVA_HOME='C:\Users\逸\.vscode\extensions\redhat.java-1.58.0-win32-x64\jre\25.0.4.1-win32-x86_64'
+cmd /c "gradlew.bat compileJava --console=plain"   # 实测 BUILD SUCCESSFUL（约 1s 增量）
+cmd /c "gradlew.bat runClient   --console=plain"   # 实测可启动，日志 run/logs/latest.log
+```
 
+要点：
+
+- **"本机没有 JDK 25"曾经是错的**：它藏在 VSCode 扩展目录里，`where java` 与常见安装目录都找不到。
+  找法：`Get-Process java | Select Path`，或直接看 `~/.vscode/extensions/redhat.java-*/jre/`。
+- 用错 JVM 时失败在**配置阶段**（不是编译阶段），错误里写得很直白："This build uses a Java 21 JVM"。
+- `runClient` 会弹出游戏窗口，验证完记得关；`gradlew` 后台跑时不要重复启动第二个实例。
+- `org.gradle.configuration-cache=true` 会把失败的配置结果也缓存；换 JVM 后若行为异常，加 `--no-configuration-cache`。
