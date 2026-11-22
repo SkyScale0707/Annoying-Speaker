@@ -28,12 +28,11 @@ public class ModBlocks {
      * 
      * @c annoying-speaker:annoying-speaker。
      *
-     *    AnnoyingSpeaker.id("annoying-speaker")这个方法直接调用了
+     * @c AnnoyingSpeaker.id("annoying-speaker")这个方法直接调用了
      * @c Identifier.fromNamespaceAndPath，返回一个 @c Identifier 实例。由此避免了重复写
-     * @c new Identifier("annoying-speaker",
-     *    "annoying-speaker")。
-     *    我的天啊dsh大人，这个写法简直惊为天人。在见到这个写法前，我根本没意识到@c
-     *    AnnoyingSpeaker.id()这个方法的存在，总是手动写值，导致报错漫天飞。
+     * @c new Identifier("annoying-speaker","annoying-speaker")。
+     *    我的天啊dsh大人，这个写法简直惊为天人。在见到这个写法前，我根本没意识到
+     * @c AnnoyingSpeaker.id()这个方法的存在，总是手动写值，导致报错漫天飞。
      *    毫不犹豫就接受了d老师的写法
      * 
      * @since 26.3

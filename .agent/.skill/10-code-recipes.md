@@ -248,3 +248,104 @@ src/main/resources/
 | 挖掉不掉落 / `Block#asItem` 异常 / 创造栏缺项 | 忘了 `registerBlocks(Item.BY_BLOCK, item)` | 补上 |
 | 手持显示紫黑 missing model | 物品模型放进了 `models/item/` | 放 `assets/<ns>/items/<id>.json` |
 | 方块面被剔除、能看到内部 | 忘了 `noOcclusion()` | 加上；并检查 `getShape` 包围盒 |
+
+---
+
+## R-002 · 方块朝向 + 贴合模型的碰撞箱
+
+**对应结论**：`05-findings.md` F-016　**适用**：`src/main`（common 侧）
+
+### 0. 选对基类
+
+| 需求 | 基类 | 自带 |
+|---|---|---|
+| 只要水平四向（北东南西） | `HorizontalDirectionalBlock` | `FACING`、`rotate`、`mirror` |
+| 还要上下（活塞、按钮那类） | `DirectionalBlock` | `FACING`（6 向）、`rotate`、`mirror` |
+
+`rotate`/`mirror` 是结构旋转（`/place`、jigsaw）用的，自己写容易漏，直接继承最省事。
+
+### 1. `src/main/java/<pkg>/SpeakerBlock.java`
+
+```java
+public class SpeakerBlock extends HorizontalDirectionalBlock {
+    public static final EnumProperty<Direction> FACING = HorizontalDirectionalBlock.FACING;
+
+    // 只写"朝北"一份，坐标单位 1/16 格，与模型 JSON 的 from/to 一一对应
+    private static final VoxelShape SHAPE_NORTH = Shapes.or(
+        Block.box(2.0, 0.0, 3.0, 13.0, 11.0, 14.0),   // 主体
+        Block.box(6.0, 11.0, 3.0, 9.0, 13.0, 5.0),    // 关节
+        Block.box(6.0, 11.0, 12.0, 9.0, 13.0, 14.0),  // 关节
+        Block.box(7.0, 13.0, 4.0, 8.0, 15.0, 13.0),   // 提手横梁
+        Block.box(1.0, 1.0, 4.0, 2.0, 10.0, 13.0)     // 侧装饰板
+    );
+
+    // 其余三向交给官方工具，旋转约定与 blockstate 的 y 完全一致
+    private static final Map<Direction, VoxelShape> SHAPES = Shapes.rotateHorizontal(SHAPE_NORTH);
+
+    public SpeakerBlock(BlockBehaviour.Properties properties) {
+        super(properties);
+        this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
+    }
+
+    @Override
+    public BlockState getStateForPlacement(BlockPlaceContext context) {
+        return this.defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
+    }
+
+    @Override
+    protected VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+        return SHAPES.get(state.getValue(FACING));
+    }
+
+    @Override
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        builder.add(FACING);
+    }
+}
+```
+
+注册处把工厂换成 `SpeakerBlock::new`：
+
+```java
+public static final Block ANNOYING_SPEAKER = Blocks.register(
+    ANNOYING_SPEAKER_KEY,
+    SpeakerBlock::new,
+    BlockBehaviour.Properties.of().strength(1.5F).noOcclusion());
+```
+
+### 2. blockstate 必须给全四向
+
+```json
+{
+  "variants": {
+    "facing=north": { "model": "annoying-speaker:block/annoying-speaker" },
+    "facing=east":  { "model": "annoying-speaker:block/annoying-speaker", "y": 90 },
+    "facing=south": { "model": "annoying-speaker:block/annoying-speaker", "y": 180 },
+    "facing=west":  { "model": "annoying-speaker:block/annoying-speaker", "y": 270 }
+  }
+}
+```
+
+`y` 与 `Shapes.rotateHorizontal` 用的是同一套约定（`OctahedralGroup.BLOCK_ROT_Y_90`），所以**不要**自己手算旋转，否则必穿模。
+
+### 3. 逐向包围盒速查（本例）
+
+| 朝向 | 形状包围盒（1/16 格） |
+|---|---|
+| north | x 1–13, y 0–15, z 3–14 |
+| east | x 2–13, y 0–15, z 1–13 |
+| south | x 3–15, y 0–15, z 2–13 |
+| west | x 3–14, y 0–15, z 3–15 |
+
+模型或包围盒改动后，用这张表反推 `Block.box` 是否还对齐。
+
+### 4. 五个坑
+
+| 现象 | 原因 | 修法 |
+|---|---|---|
+| 启动崩"属性不属于该方块" | `createBlockStateDefinition` 漏了 `FACING` | `builder.add(FACING)` |
+| 选中框还是整格 | 只覆写 `getCollisionShape` | 覆写 `getShape`（碰撞与选中框都走它） |
+| 转向后碰撞箱跟模型错位 | 手算旋转 | 用 `Shapes.rotateHorizontal` + blockstate `y` |
+| 放下后永远朝北 | 没覆写 `getStateForPlacement` | 见 §1 |
+| 结构旋转后朝向乱掉 | 没继承 `HorizontalDirectionalBlock` | 换基类，别自己写 `rotate` |
+

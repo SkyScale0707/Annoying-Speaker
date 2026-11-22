@@ -238,6 +238,29 @@
 - **检索**：`mc-src.ps1 grep "public BlockItem\(" -Side common`
 - **落地**：注释按此更正；顺序本身不用改。
 
+### F-016 · 给方块加精细碰撞箱 + 水平朝向
+- **日期**：2026-11-22
+- **问**：如何为该方块添加精细的碰撞箱模型和方块朝向。
+- **答**：三件事，全部有官方现成写法：
+  1. **基类**：`extends HorizontalDirectionalBlock` —— 它已带 `FACING`（`BlockStateProperties.HORIZONTAL_FACING`）、`rotate`、`mirror`，
+     结构旋转自动跟随，不用自己写（`HorizontalDirectionalBlock.java:10/16/22`）。
+  2. **四个覆写**：`registerDefaultState(...setValue(FACING, NORTH))`、`getStateForPlacement`（`context.getHorizontalDirection().getOpposite()`）、
+     `getShape`（按 `FACING` 取形状）、`createBlockStateDefinition`（`builder.add(FACING)`，漏了会崩）。
+  3. **精细形状**：北向用 `Shapes.or(Block.box(...)...)` 合并模型里真正挡人的部件，其余三向交给
+     `Shapes.rotateHorizontal(north)` 得到 `Map<Direction, VoxelShape>`——它与 blockstate 的 `y` 用同一套旋转
+     （`OctahedralGroup.BLOCK_ROT_Y_90/180/270`），所以**手算旋转必穿模**。
+  - 只覆写 `getShape` 即可：碰撞箱默认由 `getCollisionShape` 委托给它（`BlockBehaviour.java:321`），选中框同理。
+  - blockstate 要给全四个 variant：`facing=north/east/south/west` + `y: 0/90/180/270`。
+  - 本例逐向包围盒：north x1–13/z3–14、east x2–13/z1–13、south x3–15/z2–13、west x3–14/z3–15。
+- **证据**：`world/level/block/HorizontalDirectionalBlock.java:10,16,22`（FACING/rotate/mirror）、
+  `world/phys/shapes/Shapes.java:382-400`（`rotateHorizontal` 的四个方向）、`:123`（`or(first, tail...)`）、
+  `world/level/block/AbstractFurnaceBlock.java:31,47,66,72,76`（四件套写法）、
+  `world/level/block/Block.java:539`（`registerDefaultState` 是 `protected final`，子类可调）、
+  `Block.java:108`（`stateDefinition` 为 `protected final`）、`BlockBehaviour.java:321`（碰撞箱委托 `getShape`）
+- **检索**：`mc-src.ps1 show net/minecraft/world/level/block/HorizontalDirectionalBlock.java`
+- **落地**：`src/main`。产物见 `10-code-recipes.md` **R-002**；形状坐标必须与模型 `from/to` 同步维护。
+- **未验证**：本机 JDK 21 起不来，形状旋转只做了公式推导与逐向包围盒核对，未进游戏看穿模。
+
 ---
 
 ## 待答 / 候选问题（下次提问时优先验证）

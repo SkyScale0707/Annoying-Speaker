@@ -141,6 +141,10 @@ powershell ... -File $s grep "^import net\.minecraft\.client" -Side common -Max 
   读不到"怎么注册"时，直接 `show <表类>.java -From <总行数-45>`。
 - **`Access widened` 注释＝Fabric 拓宽**：`grep "Access widened by fabric-transitive-access-wideners"` 可列出
   被 Fabric 变成 public 的原版成员（如 `Blocks.register`、`Item.Properties`），这些就是模组可复用的官方入口。
+- **朝向模板法**：任何"方块要转向"的问题，先看 `HorizontalDirectionalBlock` 的子类——`AbstractFurnaceBlock`
+  最干净（`getStateForPlacement`/`rotate`/`mirror`/`createBlockStateDefinition` 四件套），照抄即可。
+  形状四向一律用 `Shapes.rotateHorizontal(north)`，别手算旋转矩阵。
+- **形状找现成写法**：`grep "Shapes.rotateHorizontal(" -Side common` 能一次列出几十个带朝向的方块形状写法。
 - **抽象基类三分法**：`Level`（抽象）/ `ServerLevel` / `ClientLevel` 三件套是理解双端差异的最短路径；同类还有
   `Player` 三分（`Player`/`ServerPlayer`/`LocalPlayer`）、`PacketListener` 三分。
 - **`handle*` 定位法**：任何下行包的行为，都能在 `ClientPacketListener` 里找到同名 `handleXxx`。
