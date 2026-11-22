@@ -279,6 +279,47 @@
   两者同时出现，基本就是"blockstate 的属性和方块状态对不上"（最常见的成因是注册用了不含该属性的类）。
 - **教训 3（验证引用）**：判断"新类有没有真的被用上"，直接 `findstr /C:<类名> <编译产物>.class`，比读源码可靠。
 
+### F-018 · 潜行右键放置、普通右键开界面、ESC 退出
+- **日期**：2026-11-22
+- **问**：在 `SpeakerMouseClickUseMethod.java` 里实现"Shift+右键放置、右键打开音响界面、ESC 退出"。
+- **答**：靠**两端一致的调用顺序**分工，不需要自己拦截键鼠：
+  1. `blockState.useItemOn(...)` 默认返回 `TRY_WITH_EMPTY_HAND`；
+  2. 主手且上一步是 `TryEmptyHandInteraction` → `blockState.useWithoutItem(...)`；
+  3. 仍未消费 → `itemStack.useOn(context)`（方块物品在此放置）。
+  服务端还有 `suppressUsingBlock = isSecondaryUseActive() && 手持非空`（`ServerPlayerGameMode.java:405`）：
+  **潜行时方块交互被整体跳过**，于是"潜行 = 只放置"是引擎行为，不用 hack。
+  实现即两条互让规则：物品侧"非潜行 → `PASS`（不放置）、潜行 → `place`"；方块侧"潜行 → `PASS`（让位给放置）、非潜行 → 开界面并返回 `SUCCESS`（消费，避免再放置）"。
+  界面用客户端回调注入（逻辑在 `src/main`，`Screen` 只能放 `src/client`），ESC 由 `Screen#shouldCloseOnEsc()` 默认 true 免费提供。
+- **三处 26.3 改名（旧写法直接编译失败）**：
+  - `Minecraft#setScreen(...)` → **`Minecraft.gui.setScreen(...)`**（屏幕栈挂在 `Gui`：`Minecraft.java:308` `public final Gui gui`、`Gui.java:234`）
+  - `Block#use(...)` → **`useWithoutItem(...)`**，且 `useItemOn` 默认返回 `TRY_WITH_EMPTY_HAND` 而非直接回调（`BlockBehaviour.java:193-207`）
+  - `Screen#render(GuiGraphics,…)` → **`extractRenderState(GuiGraphicsExtractor,…)`**，基类只画控件（`Screen.java:121`）
+- **证据**：`ServerPlayerGameMode.java:404-421`（suppressUsingBlock 与三步顺序）、
+  `MultiPlayerGameMode.java:349-355`（客户端同样先 `useItemOn` 再 `useWithoutItem`）、
+  `BlockBehaviour.java:193-207`（默认 PASS / TRY_WITH_EMPTY_HAND）、
+  `UseOnContext.java:78`（`isSecondaryUseActive`）、`Minecraft.java:308` + `Gui.java:234`（屏幕栈）
+- **检索**：`mc-src.ps1 show net/minecraft/server/level/ServerPlayerGameMode.java -From 403 -To 425`
+- **落地**：逻辑 `src/main`（`SpeakerMouseClickUseMethod`、`SpeakerItem`、`SpeakerBlock#useWithoutItem`），
+  界面 `src/client`（`SpeakerScreen`、`AnnoyingSpeakerClient` 注入回调）；lang 新增 `screen.annoying-speaker.speaker`。
+- **验证**：`compileJava` + `compileClientJava` 均 BUILD SUCCESSFUL；**交互本身需手动试**（无法自动化点击）。
+- **注**：当前界面是客户端 `setScreen`，服务端不参与；接真实容器时改 `ServerPlayer#openMenu` + 注册 `MenuType`，
+  否则多人下界面里没有同步数据。配方见 `10-code-recipes.md` **R-003**。
+
+### F-019 · 手持右键与方块右键共用同一个界面
+- **日期**：2026-11-22
+- **问**：方块化的音响右键点击，要与手持右键的 UI 触发相同。
+- **答**：方块侧 `useWithoutItem` 上一轮已覆盖；这次补物品侧 `Item#use(Level, Player, InteractionHand)`
+  ——它只在"右键没有方块目标"（空气）时触发——两条路径共用 `openSpeakerUi`，用 `pos == null` 表示"手持模式"：
+  - `SpeakerItem#use` → `SpeakerMouseClickUseMethod.use(...)` → `openSpeakerUi(level, null, player)`；
+  - `openSpeakerUi` 参数改为 `@Nullable BlockPos`，null 时跳过 `immutable()` 直接把 null 传给客户端回调；
+  - `SpeakerScreen` 字段`@Nullable BlockPos`，null 时显示 `screen.annoying-speaker.speaker.held`（手持）而不是坐标。
+  `use` 里**不判断潜行**：右键空气本来就没有可放置的方块，判断潜行只会让"Shift+右键空气"变成无反应。
+- **证据**：`world/item/BlockItem.java` 只覆写 `useOn`/`place`，没有覆写 `use`（所以继承 `Item#use` 的 `PASS`）；
+  `Item#use(Level, Player, InteractionHand)` 签名见 `world/item/BoatItem.java:31`、`BowItem.java:95`
+- **检索**：`mc-src.ps1 grep "public InteractionResult use\(final Level level, final Player player, final InteractionHand hand\)" -Side common -Max 5`
+- **落地**：`src/main`（物品与规则）、`src/client`（界面按 null 分支）；lang 新增 `screen.annoying-speaker.speaker.held`。
+- **验证**：`compileJava` + `compileClientJava` 通过；交互仍需手动试。
+
 ---
 
 ## 待答 / 候选问题（下次提问时优先验证）

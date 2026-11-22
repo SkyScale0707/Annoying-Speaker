@@ -349,3 +349,142 @@ public static final Block ANNOYING_SPEAKER = Blocks.register(
 | 放下后永远朝北 | 没覆写 `getStateForPlacement` | 见 §1 |
 | 结构旋转后朝向乱掉 | 没继承 `HorizontalDirectionalBlock` | 换基类，别自己写 `rotate` |
 
+
+---
+
+## R-003 · 潜行右键放置 / 普通右键开界面 / ESC 退出
+
+**对应结论**：`05-findings.md` F-018　**适用**：逻辑在 `src/main`，界面在 `src/client`
+
+### 0. 先理解两端的调用顺序
+
+客户端 `MultiPlayerGameMode#performUseItemOn` 与服务端 `ServerPlayerGameMode#useItemOn` 顺序一致：
+
+1. `blockState.useItemOn(item, ...)`：默认实现返回 **`TRY_WITH_EMPTY_HAND`**（不消费）；
+2. 若结果是 `TryEmptyHandInteraction` 且主手 → **`blockState.useWithoutItem(...)`**；
+3. 若仍没消费 → **`itemStack.useOn(context)`**（方块物品在这里放置）。
+
+服务端还有一条关键规则（`ServerPlayerGameMode.java:405`）：
+
+```java
+boolean suppressUsingBlock = player.isSecondaryUseActive() && haveSomethingInOurHands;
+```
+
+即 **潜行且手持物品时，方块交互被整体跳过**，只剩物品放置。这就是"Shift = 只放置"的天然来源。
+
+### 1. 分工表
+
+| 玩家动作 | 命中 | 实际执行 | 返回 |
+|---|---|---|---|
+| 潜行 + 右键 | 任意方块 | 方块交互被跳过 → 物品 `place` | 放置成功 |
+| 右键 | 已放置的音响 | 方块 `useWithoutItem` → 开界面 | `SUCCESS`（消费，不再放置） |
+| 右键 | 其它方块 | 方块交互无结果 → 物品侧直接 `PASS` | 什么都不发生 |
+
+### 2. 三个入口的代码骨架
+
+```java
+// 物品侧：不潜行就让路
+public static InteractionResult useOn(BlockItem item, UseOnContext context) {
+    if (!context.isSecondaryUseActive()) {
+        return InteractionResult.PASS;          // 注意：不能返回 FAIL，否则方块交互也会被吞掉
+    }
+    return item.place(new BlockPlaceContext(context));
+}
+
+// 方块侧：潜行让位给放置，否则开界面
+@Override
+protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos,
+                                           Player player, BlockHitResult hitResult) {
+    if (player.isSecondaryUseActive()) {
+        return InteractionResult.PASS;
+    }
+    return SpeakerMouseClickUseMethod.openSpeakerUi(level, pos, player);   // SUCCESS
+}
+
+// 开界面：客户端回调，服务端空转（后续换 Menu 时改这里）
+public static InteractionResult openSpeakerUi(Level level, BlockPos pos, Player player) {
+    if (level.isClientSide()) {
+        clientUiOpener.accept(pos.immutable());
+    }
+    return InteractionResult.SUCCESS;
+}
+```
+
+客户端注入（`ClientModInitializer`）：
+
+```java
+SpeakerMouseClickUseMethod.setClientUiOpener(
+    pos -> Minecraft.getInstance().gui.setScreen(new SpeakerScreen(pos)));
+```
+
+界面占位（ESC 由 `Screen#shouldCloseOnEsc()` 默认 true 免费提供）：
+
+```java
+public class SpeakerScreen extends Screen {
+    @Override protected void init() {
+        this.addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> this.onClose())
+            .bounds(this.width / 2 - 50, this.height / 2 + 24, 100, 20).build());
+    }
+    @Override public void extractRenderState(GuiGraphicsExtractor g, int mx, int my, float pt) {
+        super.extractRenderState(g, mx, my, pt);
+        g.centeredText(this.font, TITLE, this.width / 2, this.height / 2 - 44, 0xFFFFFFFF);
+    }
+}
+```
+
+### 3. 26.3 与旧教程的差异（都会导致编译失败）
+
+| 旧写法 | 26.3 | 证据 |
+|---|---|---|
+| `Minecraft.getInstance().setScreen(...)` | **`Minecraft.getInstance().gui.setScreen(...)`**（屏幕栈搬到 `Gui`） | `Minecraft.java:308`（`public final Gui gui`）、`Gui.java:234` |
+| `Block#use(...)` | **`useWithoutItem(...)`**，且默认 `useItemOn` 返回 `TRY_WITH_EMPTY_HAND` | `BlockBehaviour.java:193-207` |
+| `Screen#render(GuiGraphics,...)` | `extractRenderState(GuiGraphicsExtractor,...)`，且基类只画控件，背景由框架画 | `Screen.java:121` |
+
+### 4. 坑
+
+| 现象 | 原因 | 修法 |
+|---|---|---|
+| 右键音响直接又放了一个 | 只改了物品侧、没改方块侧 | 方块 `useWithoutItem` 在非潜行时返回 `SUCCESS` 消费掉 |
+| 潜行也开界面 / 不潜行也放置 | 漏了潜行判断 | 两侧都要 `isSecondaryUseActive()` |
+| 普通右键完全不反应 | 物品侧返回了 `FAIL` | 返回 `PASS` |
+| 手上没物品时开不了界面 | `useWithoutItem` 只在主手且物品返回 `TRY_WITH_EMPTY_HAND` 时被调用，空手走另一分支——本设计靠物品侧 PASS 兜底 | 空手也应能开：方块侧逻辑已覆盖（空手时 `useItemOn` 直接 TRY） |
+| 多人时界面里没数据 | 目前只客户端 `setScreen`，服务端不知道 | 接真实容器时改 `ServerPlayer#openMenu` + 注册 `MenuType` + `MenuScreens.register` |
+
+### 5. 手持右键也开同一个界面（补物品侧 `use`）
+
+方块侧已覆盖，手持侧要补 `Item#use`——它**只在右键没有方块目标时**触发，所以两条路径不会打架：
+
+```java
+// SpeakerItem：多加一个入口
+@Override
+public InteractionResult use(Level level, Player player, InteractionHand hand) {
+    return SpeakerMouseClickUseMethod.use(level, player, hand);
+}
+
+// 规则类：与方块侧共用一个方法，pos 传 null 表示"手持"
+public static InteractionResult use(Level level, Player player, InteractionHand hand) {
+    return openSpeakerUi(level, null, player);
+}
+
+public static InteractionResult openSpeakerUi(Level level, @Nullable BlockPos pos, Player player) {
+    if (level.isClientSide()) {
+        clientUiOpener.accept(pos == null ? null : pos.immutable());
+    }
+    return InteractionResult.SUCCESS;
+}
+```
+
+界面按 `pos == null` 切分支：
+
+```java
+graphics.centeredText(this.font,
+    this.pos == null ? Component.translatable("screen.annoying-speaker.speaker.held")
+                     : Component.literal("x=" + this.pos.getX() + "…"),
+    this.width / 2, this.height / 2 - 24, 0xFFA0A0A0);
+```
+
+要点：
+
+- `use` 里**不要**判断潜行：右键空气没有放置目标，加判断只会让"Shift+右键空气"变成无反应。
+- `pos` 允许 `null` 后，客户端回调与界面字段都要标 `@Nullable`，`immutable()` 必须做 null 判断。
+- 两个入口共用 `openSpeakerUi`，以后接 `Menu` 时只改这一处。

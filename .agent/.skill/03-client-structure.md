@@ -102,7 +102,9 @@ AbstractWidget#renderWidget(...)                   →   extractWidgetRenderStat
 ```
 
 - 控件：`gui/components`126（`AbstractWidget`、`Button`、`EditBox`、`AbstractSelectionList`、`toasts/`）。
-- 界面：`gui/screens`222（称号、暂停、选项、创造背包、社交…）。
+- **屏幕栈在 `Gui` 上**：26.3 的 `Minecraft` 已没有 `setScreen`，改用 `Minecraft.getInstance().gui.setScreen(screen)`
+  （`Minecraft.java:308` 的 `public final Gui gui` + `Gui.java:234` 的 `setScreen`）；`Gui` 同时管 HUD 与界面栈，
+  是"界面 + 覆盖层"的总调度。- 界面：`gui/screens`222（称号、暂停、选项、创造背包、社交…）。
 - 辅助：`gui/layouts`12（`GridLayout` 等）、`gui/navigation`6（手柄/焦点导航，新增）、`gui/contextualbar`5（新增）、`gui/font`31、`gui/narration`8、`gui/spectator`11。
 - `gui/render/pip`(8)：GUI 专用渲染管线。
 

@@ -48,7 +48,7 @@ public class ModItems {
     public static final Item ANNOYING_SPEAKER = registerBlockItem(
             ANNOYING_SPEAKER_ITEM_KEY,
             ModBlocks.ANNOYING_SPEAKER,
-            BlockItem::new);
+            SpeakerItem::new);
 
     /**
      * @override @c Items.registerItem 的三步注册，返回已写入注册表的方块物品。

@@ -8,14 +8,18 @@ package com.ggscaletest.ModItems;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -110,6 +114,30 @@ public class SpeakerBlock extends HorizontalDirectionalBlock {
     @Override
     protected VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
         return SHAPES.get(state.getValue(FACING));
+    }
+
+    /**
+     * 右键音响本体时的行为：潜行让位于放置，否则打开界面。
+     *
+     * 两端顺序都是"先方块交互、后物品放置"，所以这里必须先判断潜行：
+     * 潜行时返回 @c PASS，物品侧的 @ref SpeakerMouseClickUseMethod#useOn 才会执行放置；
+     * 不潜行时打开界面并返回 @c SUCCESS，物品侧因此不会再放置。
+     *
+     * @param state     方块状态
+     * @param level     所在世界
+     * @param pos       音响坐标
+     * @param player    交互玩家
+     * @param hitResult 命中结果
+     * @return 潜行时 @c PASS，否则 @c SUCCESS
+     * @see com.ggscaletest.ModItems.SpeakerMouseClickUseMethod
+     * @since 26.3
+     */
+    @Override
+    protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hitResult) {
+        if (player.isSecondaryUseActive()) {
+            return InteractionResult.PASS;
+        }
+        return SpeakerMouseClickUseMethod.openSpeakerUi(level, pos, player);
     }
 
     /**
