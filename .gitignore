@@ -38,3 +38,6 @@ hs_err_*.log
 replay_*.log
 *.hprof
 *.jfr
+
+# 本项目下额外副产物，包括 测试用源码，agent生成副本等
+.agent/.cache
