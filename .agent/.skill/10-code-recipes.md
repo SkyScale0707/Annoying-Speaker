@@ -488,3 +488,39 @@ graphics.centeredText(this.font,
 - `use` 里**不要**判断潜行：右键空气没有放置目标，加判断只会让"Shift+右键空气"变成无反应。
 - `pos` 允许 `null` 后，客户端回调与界面字段都要标 `@Nullable`，`immutable()` 必须做 null 判断。
 - 两个入口共用 `openSpeakerUi`，以后接 `Menu` 时只改这一处。
+
+### 5. 默认朝向不是 north 时（例如 west 定为 y=0）
+
+`Shapes.rotateHorizontal(shape)` 默认按"north→0、east→90、south→180、west→270"生成四个键。
+如果 blockstate 把别的朝向定为 y=0，就要把"基线旋转"补上，否则四向整体错开 90°：
+
+```json
+// blockstates: west 为默认（y=0）
+"facing=west":  { "model": "..." },
+"facing=north": { "model": "...", "y": 90 },
+"facing=east":  { "model": "...", "y": 180 },
+"facing=south": { "model": "...", "y": 270 }
+```
+
+```java
+// 形状盒子仍然是"y=0 那一版"（= 默认朝向的几何），不要旋转它们
+private static final VoxelShape SHAPE_WEST = Shapes.or(/* … */);
+
+// 关键：告诉工具"入参对应哪个朝向"
+private static final Map<Direction, VoxelShape> SHAPES =
+    Shapes.rotateHorizontal(SHAPE_WEST, OctahedralGroup.BLOCK_ROT_Y_90);
+```
+
+规则：`initial` 取"从默认朝向转到 north 所需的 y 旋转"。
+
+| blockstate 里 y=0 的朝向 | `initial` |
+|---|---|
+| north（原版惯例） | `OctahedralGroup.IDENTITY`（即不传） |
+| east | `BLOCK_ROT_Y_270` |
+| south | `BLOCK_ROT_Y_180` |
+| west | `BLOCK_ROT_Y_90` |
+
+判断是否对齐：`WEST` 键应等于原形状（默认朝向的旋转为 0），`NORTH` 键应等于"再转 90"。
+
+> 反例提醒：原版 `attached_melon_stem` 是 west→0 却用 `rotateHorizontal(shape)`，只因它形状近似轴对称，
+> 不能当模板抄。

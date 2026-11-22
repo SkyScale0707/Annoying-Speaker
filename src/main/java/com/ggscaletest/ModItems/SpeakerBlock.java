@@ -5,6 +5,7 @@
  */
 package com.ggscaletest.ModItems;
 
+import com.mojang.math.OctahedralGroup;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -67,9 +68,17 @@ public class SpeakerBlock extends HorizontalDirectionalBlock {
     /**
      * 四个水平朝向各自的形状，按 @c FACING 直接取值。
      *
+     * @c Shapes.rotateHorizontal 默认把入参当成"blockstate 里 y=0 的那一版"。
+     * 本方块把 @c facing=west 映射成 y=0，所以额外传入初始旋转 @c BLOCK_ROT_Y_90：
+     * NORTH 得到"再转 90°"的形状（对应 blockstate 的 @c facing=north y=90），
+     * WEST 得到原形状（y=0），四个方向与 @c blockstates/annoying-speaker.json 严格对齐。
+     * 若去掉这个初始旋转，四个方向会整体错开 90°，表现是碰撞箱/选中框与模型错位。
+     *
+     * @see net.minecraft.world.phys.shapes.Shapes#rotateHorizontal
      * @since 26.3
      */
-    private static final Map<Direction, VoxelShape> SHAPES = Shapes.rotateHorizontal(SHAPE_WEST);
+    private static final Map<Direction, VoxelShape> SHAPES =
+        Shapes.rotateHorizontal(SHAPE_WEST, OctahedralGroup.BLOCK_ROT_Y_90);
 
     /**
      * 构造方块，并把默认状态设为"朝西"。

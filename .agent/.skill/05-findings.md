@@ -1,4 +1,4 @@
-﻿# 05 · 问答结论库
+# 05 · 问答结论库
 
 > **追加规则**：每轮提问结束后在文末追加一条 `F-xxx`，编号连续、不删不改。
 > 若新证据推翻了旧结论，在旧条目内追加 `> 修订(日期)：…`，并在 `90-update-log.md` 记为「更正」。
@@ -319,6 +319,30 @@
 - **检索**：`mc-src.ps1 grep "public InteractionResult use\(final Level level, final Player player, final InteractionHand hand\)" -Side common -Max 5`
 - **落地**：`src/main`（物品与规则）、`src/client`（界面按 null 分支）；lang 新增 `screen.annoying-speaker.speaker.held`。
 - **验证**：`compileJava` + `compileClientJava` 通过；交互仍需手动试。
+
+### F-020 · 默认朝向改成 west 后，形状为什么不改盒子、要改旋转基线
+- **日期**：2026-11-22
+- **问**：把"朝西"定义为默认朝向，改了 blockstate（west→y 0、north→90、east→180、south→270），
+  形状定义要怎么改。
+- **答**：**盒子不用动**。那 5 个 `Block.box` 就是"y=0 那一版几何"（= 默认朝西时的模型），
+  要改的是旋转基线：
+  ```java
+  Shapes.rotateHorizontal(SHAPE_WEST, OctahedralGroup.BLOCK_ROT_Y_90)
+  ```
+  推导：`Shapes.rotateHorizontal` 按 "north→0、east→90、south→180、west→270" 生成四个键
+  （`Shapes.java:390-400`；原版 `bell.json` 正是 north→0，可作锚点）。现在 blockstate 把 west 定为 0，
+  于是需要 `NORTH = rotate(G, y=90)`，即传入 `initial = BLOCK_ROT_Y_90`；这样
+  `EAST = Y90∘Y90 = Y180`、`SOUTH = Y270`、`WEST = Y90∘Y270 = identity = G`，四向与 blockstate 一一对上。
+  不传 `initial` 时四向整体错开 90°，表现就是碰撞箱/选中框与模型错位。
+- **反例参考**：原版 `attached_melon_stem.json` 也把 west 定为 y=0，但它的形状近似轴对称，所以
+  `rotateHorizontal(shape)` 不传 `initial` 也没暴露错位——**不能拿它当模板**。
+- **证据**：`Shapes.java:382-400`（`rotateHorizontal` 的四个键与 `initial` 的复合方式）、
+  `com/mojang/math/OctahedralGroup.java:68,70`（`BLOCK_ROT_Y_270 = ROT_90_Y_POS`、`BLOCK_ROT_Y_90 = ROT_90_Y_NEG`，
+  即常量名对应 blockstate 的 y 值）、`assets/minecraft/blockstates/bell.json`（north→0）
+- **检索**：`mc-src.ps1 show net/minecraft/world/phys/shapes/Shapes.java -From 382 -To 402`
+- **落地**：`SpeakerBlock` 的 `SHAPES` 字段；`SHAPE_WEST` 盒子保持不变。若坚持 north→0 约定，则必须把盒子整体
+  旋 +90（north 版）并把 blockstate 改回 north→0，那就不再是"默认朝西"。
+- **验证**：静态核对（import 可见性、括号平衡、注释规则）+ 旋转推导；按用户要求未执行 `gradlew`。
 
 ---
 

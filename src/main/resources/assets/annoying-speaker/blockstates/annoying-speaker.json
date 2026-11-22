@@ -1,17 +1,17 @@
 {
   "variants": {
-    "facing=north": {
+    "facing=west": {
       "model": "annoying-speaker:block/annoying-speaker"
     },
-    "facing=east": {
+    "facing=north": {
       "model": "annoying-speaker:block/annoying-speaker",
       "y": 90
     },
-    "facing=south": {
+    "facing=east": {
       "model": "annoying-speaker:block/annoying-speaker",
       "y": 180
     },
-    "facing=west": {
+    "facing=south": {
       "model": "annoying-speaker:block/annoying-speaker",
       "y": 270
     }
